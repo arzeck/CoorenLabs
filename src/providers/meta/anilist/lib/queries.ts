@@ -9,7 +9,7 @@ export const SPOTLIGHT_QUERY = `
       id
       title { english romaji }
       bannerImage
-      coverImage { extraLarge }
+      coverImage { extraLarge large color}
       description
       season
       seasonYear
@@ -48,8 +48,9 @@ export const HOME_DATA_QUERY = `
 
   fragment mediaFields on Media {
     id
-    title { english romaji }
-    coverImage { extraLarge }
+    title { romaji english native }
+    coverImage { extraLarge large color }
+    isAdult
     format
     episodes
     status
@@ -71,6 +72,7 @@ export const ANIME_DETAIL_QUERY = `
       nextAiringEpisode { timeUntilAiring episode }
       status
       format
+      isAdult
       genres
       averageScore
       meanScore
