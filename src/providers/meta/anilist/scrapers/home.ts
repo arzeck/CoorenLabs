@@ -48,7 +48,7 @@ export async function scrapeHome() {
       return {
         id: media.id,
         title: remap?.name || media.title.english || media.title.romaji || "",
-        logo: remap?.logo || logo || media.coverImage?.extraLarge || "",
+        logo: remap?.logo || logo || "",
         banner: remap?.banner || banner || media.bannerImage || media.coverImage?.extraLarge || "",
         description: remap?.description || media.description?.replace(/<[^>]*>?/gm, "") || "",
         season:
