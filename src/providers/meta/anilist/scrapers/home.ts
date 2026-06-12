@@ -48,6 +48,7 @@ export async function scrapeHome() {
       return {
         id: media.id,
         title: remap?.name || media.title.english || media.title.romaji || "",
+        poster: remap?.poster_img || media.coverImage?.extraLarge || "",
         logo: remap?.logo || logo || "",
         banner: remap?.banner || banner || media.bannerImage || media.coverImage?.extraLarge || "",
         description: remap?.description || media.description?.replace(/<[^>]*>?/gm, "") || "",
@@ -85,14 +86,19 @@ export async function scrapeHome() {
   const lists = homeDataResponse?.data || {};
 
   const formatMediaList = (mediaList: any[]) =>
-    (mediaList || []).map((m: any) => ({
-      id: m.id,
-      title: m.title.english || m.title.romaji || "",
-      poster: m.coverImage?.extraLarge || "",
-      type: m.format || "TV",
-      episodes: m.episodes,
-      status: formatStatus(m.status),
-    }));
+    (mediaList || []).map((m: any) => {
+      const remap = remapManager.getRemap(m.id);
+      return {
+        id: m.id,
+        title: remap?.name || m.title.english || m.title.romaji || "",
+        poster: remap?.poster_img || m.coverImage?.extraLarge || "",
+        banner: remap?.banner || remap?.banner_image || m.bannerImage || m.coverImage?.extraLarge || "",
+        logo: remap?.logo || remap?.clear_logo || "",
+        type: m.format || "TV",
+        episodes: m.episodes,
+        status: formatStatus(m.status),
+      };
+    });
 
   return {
     spotlight,
