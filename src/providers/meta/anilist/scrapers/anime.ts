@@ -89,7 +89,7 @@ export async function scrapeAnimeDetail(id: string | number) {
     title: remap?.name || media.title.english || media.title.romaji || "",
     titleRomaji: media.title.romaji || "",
     titleNative: media.title.native || "",
-    poster: media.coverImage?.extraLarge || "",
+    poster: remap?.poster_img || media.coverImage?.extraLarge || "",
     logo: remap?.logo || logo || "",
     color: media.coverImage?.color || "",
     banner: remap?.banner || banner || media.bannerImage || media.coverImage?.extraLarge || "",

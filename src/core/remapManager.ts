@@ -8,6 +8,7 @@ export interface RemapRow {
   logo?: string;
   banner?: string;
   description?: string;
+  poster?: string;
   banner_image?: string; // fallback for ani.zip images
   clear_logo?: string; // fallback for ani.zip images
   [key: string]: any;
