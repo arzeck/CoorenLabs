@@ -2,7 +2,7 @@ export const animepahe = "https://animepahe.com";
 export const animekai = "https://anikai.to";
 export const toonstream = "https://toonstream.vip";
 export const animesalt = "https://animesalt.ac";
-export const animelok = "https://animelok.online";
+export const animelok = "https://animelok.net";
 
 export const flixhq = "https://flixhq.to";
 export const yflix = "https://yflix.to";
