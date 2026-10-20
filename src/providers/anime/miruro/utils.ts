@@ -1,4 +1,41 @@
 import { gunzipSync } from "node:zlib";
+import { remapManager } from "../../../core/remapManager";
+
+export function applyRemapsToMedia(media: any): any {
+  if (!media || !media.id) return media;
+  const remap = remapManager.getRemap(media.id);
+  if (!remap) return media;
+
+  if (media.title) {
+    if (remap.name) {
+      media.title.english = remap.name;
+    }
+  }
+
+  if (media.coverImage) {
+    const poster = remap.poster_img || remap.poster;
+    if (poster) {
+      media.coverImage.extraLarge = poster;
+      media.coverImage.large = poster;
+    }
+  }
+
+  const banner = remap.banner || remap.banner_image;
+  if (banner) {
+    media.bannerImage = banner;
+  }
+
+  if (remap.description) {
+    media.description = remap.description;
+  }
+
+  const logo = remap.logo || remap.clear_logo;
+  if (logo) {
+    media.logo = logo;
+  }
+
+  return media;
+}
 
 const CATALOG_KEY = new TextEncoder().encode("miruro/catalog");
 

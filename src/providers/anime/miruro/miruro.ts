@@ -1,9 +1,10 @@
 import { Cache } from "../../../core/cache";
 import { Logger } from "../../../core/logger";
 import { type ProxyHeaders, proxyUrl } from "../../../core/proxy";
+import { remapManager } from "../../../core/remapManager";
 import { extractAniZipImages, fetchWithRetry } from "../../meta/anilist/lib/helpers";
 import { miruro as MIRURO_URL } from "../../origins";
-import { MEDIA_FULL_FIELDS, MEDIA_LIST_FIELDS, decodeCatalog } from "./utils";
+import { MEDIA_FULL_FIELDS, MEDIA_LIST_FIELDS, applyRemapsToMedia, decodeCatalog } from "./utils";
 
 const ANILIST_URL = "https://graphql.anilist.co";
 const CATALOG_URL = `${MIRURO_URL}/api/v1`;
@@ -67,7 +68,8 @@ const aniZip = (anilistId: string | number) =>
     .catch(() => null);
 
 function withArtwork(media: any, mappings: unknown) {
-  const { banner, logo } = extractAniZipImages(mappings);
+  const remap = remapManager.getRemap(media.id);
+  const { banner, logo } = extractAniZipImages(mappings, remap);
   media.bannerImage = banner || media.bannerImage;
   media.logo = logo || media.logo;
   return media;
@@ -166,6 +168,7 @@ export class Miruro {
 
   static async search(query: string, page = 1, perPage = 20) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query ($search: String, $page: Int, $perPage: Int) {
           Page(page: $page, perPage: $perPage) {
@@ -179,7 +182,7 @@ export class Miruro {
       );
       return {
         ...paged(data.Page?.pageInfo, page, perPage),
-        results: data.Page?.media || [],
+        results: (data.Page?.media || []).map(applyRemapsToMedia),
       };
     } catch (err) {
       Logger.error(`[Miruro] search failed: ${String(err)}`);
@@ -189,6 +192,7 @@ export class Miruro {
 
   static async suggestions(query: string) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query ($search: String) {
           Page(page: 1, perPage: 8) {
@@ -206,16 +210,19 @@ export class Miruro {
         { search: query },
       );
       return {
-        suggestions: (data.Page?.media || []).map((item: any) => ({
-          id: item.id,
-          title: item.title?.english || item.title?.romaji,
-          title_romaji: item.title?.romaji,
-          poster: item.coverImage?.large,
-          format: item.format,
-          status: item.status,
-          year: item.startDate?.year,
-          episodes: item.episodes,
-        })),
+        suggestions: (data.Page?.media || []).map((item: any) => {
+          const remapped = applyRemapsToMedia(item);
+          return {
+            id: remapped.id,
+            title: remapped.title?.english || remapped.title?.romaji,
+            title_romaji: remapped.title?.romaji,
+            poster: remapped.coverImage?.large,
+            format: remapped.format,
+            status: remapped.status,
+            year: remapped.startDate?.year,
+            episodes: remapped.episodes,
+          };
+        }),
       };
     } catch (err) {
       Logger.error(`[Miruro] suggestions failed: ${String(err)}`);
@@ -225,6 +232,7 @@ export class Miruro {
 
   static async filter(params: Record<string, string | undefined>) {
     try {
+      await remapManager.ensureLoaded();
       const sort = SORTS.has(params.sort ?? "") ? params.sort : "POPULARITY_DESC";
       const args = ["type: ANIME", `sort: [${sort}]`, "isAdult: false"];
       const types = ["$page: Int", "$perPage: Int"];
@@ -259,7 +267,7 @@ export class Miruro {
       );
       return {
         ...paged(data.Page?.pageInfo, variables.page as number, variables.perPage as number),
-        results: data.Page?.media || [],
+        results: (data.Page?.media || []).map(applyRemapsToMedia),
       };
     } catch (err) {
       Logger.error(`[Miruro] filter failed: ${String(err)}`);
@@ -275,6 +283,7 @@ export class Miruro {
     allowAll: boolean,
   ) {
     try {
+      await remapManager.ensureLoaded();
       const filters = `${status ? `, status: ${status}` : ""}${allowAll ? "" : ', countryOfOrigin: "JP"'}`;
       const data = await this.anilistQuery(
         `query ($page: Int, $perPage: Int) {
@@ -289,7 +298,7 @@ export class Miruro {
       );
       return {
         ...paged(data.Page?.pageInfo, page, perPage),
-        results: data.Page?.media || [],
+        results: (data.Page?.media || []).map(applyRemapsToMedia),
       };
     } catch (err) {
       Logger.error(`[Miruro] ${sort} collection failed: ${String(err)}`);
@@ -315,6 +324,7 @@ export class Miruro {
 
   static async spotlight(allowAll = false) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query {
           Page(page: 1, perPage: 10) {
@@ -327,7 +337,7 @@ export class Miruro {
       );
       const results = await Promise.all(
         (data.Page?.media || []).map(async (media: any) =>
-          withArtwork(media, await aniZip(media.id)),
+          withArtwork(applyRemapsToMedia(media), await aniZip(media.id)),
         ),
       );
       return { results };
@@ -339,6 +349,7 @@ export class Miruro {
 
   static async schedule(page = 1, perPage = 20) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query ($page: Int, $perPage: Int) {
           Page(page: $page, perPage: $perPage) {
@@ -358,7 +369,7 @@ export class Miruro {
       return {
         ...paged(data.Page?.pageInfo, page, perPage),
         results: (data.Page?.airingSchedules || []).map((item: any) => ({
-          ...item.media,
+          ...(item.media ? applyRemapsToMedia(item.media) : {}),
           next_episode: item.episode,
           airingAt: item.airingAt,
           timeUntilAiring: item.timeUntilAiring,
@@ -372,6 +383,7 @@ export class Miruro {
 
   static async info(anilistId: string | number) {
     try {
+      await remapManager.ensureLoaded();
       const [data, mappings] = await Promise.all([
         this.anilistQuery(
           `query ($id: Int) {
@@ -383,7 +395,7 @@ export class Miruro {
         ),
         aniZip(anilistId),
       ]);
-      return data.Media ? withArtwork(data.Media, mappings) : null;
+      return data.Media ? withArtwork(applyRemapsToMedia(data.Media), mappings) : null;
     } catch (err) {
       Logger.error(`[Miruro] info failed for ${anilistId}: ${String(err)}`);
       return null;
@@ -437,6 +449,7 @@ export class Miruro {
 
   static async relations(anilistId: string | number) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query ($id: Int) {
           Media(id: $id, type: ANIME) {
@@ -467,10 +480,14 @@ export class Miruro {
         { id: Number(anilistId) },
       );
       if (!data.Media) return null;
+      applyRemapsToMedia(data.Media);
       return {
         id: data.Media.id,
         title: data.Media.title,
-        relations: data.Media.relations?.edges || [],
+        relations: (data.Media.relations?.edges || []).map((edge: any) => {
+          if (edge.node) applyRemapsToMedia(edge.node);
+          return edge;
+        }),
       };
     } catch (err) {
       Logger.error(`[Miruro] relations failed for ${anilistId}: ${String(err)}`);
@@ -480,6 +497,7 @@ export class Miruro {
 
   static async recommendations(anilistId: string | number, page = 1, perPage = 10) {
     try {
+      await remapManager.ensureLoaded();
       const data = await this.anilistQuery(
         `query ($id: Int, $page: Int, $perPage: Int) {
           Media(id: $id, type: ANIME) {
@@ -512,7 +530,10 @@ export class Miruro {
       const recommendations = data.Media?.recommendations;
       return {
         ...paged(recommendations?.pageInfo, page, perPage),
-        recommendations: recommendations?.nodes || [],
+        recommendations: (recommendations?.nodes || []).map((node: any) => {
+          if (node.mediaRecommendation) applyRemapsToMedia(node.mediaRecommendation);
+          return node;
+        }),
       };
     } catch (err) {
       Logger.error(`[Miruro] recommendations failed for ${anilistId}: ${String(err)}`);
