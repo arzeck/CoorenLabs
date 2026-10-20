@@ -1,4 +1,5 @@
 import { Logger } from "../../../../core/logger";
+import type { RemapRow } from "../../../../core/remapManager";
 
 const ANILIST_URL = "https://graphql.anilist.co";
 const ANIZIP_URL = "https://api.ani.zip/mappings";
@@ -67,27 +68,32 @@ export function fetchAniZip(anilistId: number): Promise<any> {
     .catch(() => null);
 }
 
-export function extractAniZipImages(aniZipData: any) {
-  let banner = "";
-  let logo = "";
+export function extractAniZipImages(aniZipData: any, customOverride?: RemapRow) {
+  let banner = customOverride?.banner || customOverride?.banner_image || "";
+  let logo = customOverride?.logo || customOverride?.clear_logo || "";
+
+  if (banner && logo) return { banner, logo };
+
   for (const image of aniZipData?.images ?? []) {
     if (!banner && image.coverType === "Fanart") banner = image.url;
     if (!logo && image.coverType === "Clearlogo") logo = image.url;
+    if (banner && logo) break;
   }
   return { banner, logo };
 }
 
-export function presentMedia(media: any, aniZip?: any) {
-  const { banner, logo } = extractAniZipImages(aniZip);
+export function presentMedia(media: any, aniZip?: any, remap?: RemapRow) {
+  const { banner, logo } = extractAniZipImages(aniZip, remap);
   return {
-    title: media.title?.english || media.title?.romaji || "",
-    poster: media.coverImage?.extraLarge || "",
+    title: remap?.name || media.title?.english || media.title?.romaji || "",
+    poster: remap?.poster_img || remap?.poster || media.coverImage?.extraLarge || "",
     banner: banner || media.bannerImage || media.coverImage?.extraLarge || "",
     logo,
   };
 }
 
-export function descriptionOf(media: any): string {
+export function descriptionOf(media: any, remap?: RemapRow): string {
+  if (remap?.description) return remap.description;
   return media.description?.replace(/<[^>]*>?/gm, "") || "";
 }
 

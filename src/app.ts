@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import { CORS_CREDENTIALS, CORS_ORIGIN, NODE_ENV, validateConfig } from "./core/config";
 import { mappingRoutes } from "./core/mappingRoutes";
 import { proxyRoutes } from "./core/proxyRoutes";
+import { remapManager } from "./core/remapManager";
 import { isNode } from "./core/runtime";
 import { animeRoutes } from "./providers/anime/route";
 import { mangaRoutes } from "./providers/manga/route";
@@ -30,6 +31,7 @@ const documentation = openapi({
 });
 
 validateConfig();
+void remapManager.init();
 
 const adapter = isNode ? (await import("@elysiajs/node")).node() : undefined;
 

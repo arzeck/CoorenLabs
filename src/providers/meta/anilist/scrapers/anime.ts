@@ -9,8 +9,10 @@ import {
   queryAniList,
 } from "../lib/helpers";
 import { ANIME_DETAIL_QUERY } from "../lib/queries";
+import { remapManager } from "../../../../core/remapManager";
 
 export async function scrapeAnimeDetail(id: number) {
+  await remapManager.ensureLoaded();
   const [data, aniZip] = await Promise.all([
     queryAniList(ANIME_DETAIL_QUERY, { id }),
     fetchAniZip(id),
@@ -19,7 +21,8 @@ export async function scrapeAnimeDetail(id: number) {
   const media = data.Media;
   if (!media) throw new AniListError("Anime not found", 404);
 
-  const { title, poster, banner, logo } = presentMedia(media, aniZip);
+  const remap = remapManager.getRemap(media.id);
+  const { title, poster, banner, logo } = presentMedia(media, aniZip, remap);
   const { timeLeft, episodeCount } = formatAiringInfo(media);
 
   return {
@@ -31,7 +34,7 @@ export async function scrapeAnimeDetail(id: number) {
     logo,
     color: media.coverImage?.color || "",
     banner,
-    description: descriptionOf(media),
+    description: descriptionOf(media, remap),
     season: formatSeason(media),
     episode: episodeCount,
     totalEpisodes: media.episodes,
@@ -55,16 +58,19 @@ export async function scrapeAnimeDetail(id: number) {
     trailer: media.trailer,
     synonyms: media.synonyms || [],
     tags: (media.tags || []).slice(0, 10).map((tag: any) => ({ name: tag.name, rank: tag.rank })),
-    relations: (media.relations?.edges || []).map((edge: any) => ({
-      relationType: edge.relationType,
-      id: edge.node.id,
-      title: edge.node.title.english || edge.node.title.romaji || "",
-      poster: edge.node.coverImage?.extraLarge || "",
-      format: edge.node.format,
-      status: formatStatus(edge.node.status),
-      episodes: edge.node.episodes,
-      type: edge.node.type,
-    })),
+    relations: (media.relations?.edges || []).map((edge: any) => {
+      const edgeRemap = remapManager.getRemap(edge.node?.id);
+      return {
+        relationType: edge.relationType,
+        id: edge.node.id,
+        title: edgeRemap?.name || edge.node.title.english || edge.node.title.romaji || "",
+        poster: edgeRemap?.poster_img || edgeRemap?.poster || edge.node.coverImage?.extraLarge || "",
+        format: edge.node.format,
+        status: formatStatus(edge.node.status),
+        episodes: edge.node.episodes,
+        type: edge.node.type,
+      };
+    }),
     characters: (media.characters?.edges || []).map((edge: any) => ({
       role: edge.role,
       id: edge.node?.id,
@@ -79,17 +85,20 @@ export async function scrapeAnimeDetail(id: number) {
     recommendations: (media.recommendations?.nodes || [])
       .map((node: any) => node.mediaRecommendation)
       .filter(Boolean)
-      .map((rec: any) => ({
-        id: rec.id,
-        title: rec.title.english || rec.title.romaji || "",
-        poster: rec.coverImage?.extraLarge || "",
-        format: rec.format || "TV",
-        status: formatStatus(rec.status),
-        episodes: rec.episodes,
-        averageScore: rec.averageScore,
-        season: rec.season,
-        seasonYear: rec.seasonYear,
-      })),
+      .map((rec: any) => {
+        const recRemap = remapManager.getRemap(rec.id);
+        return {
+          id: rec.id,
+          title: recRemap?.name || rec.title.english || rec.title.romaji || "",
+          poster: recRemap?.poster_img || recRemap?.poster || rec.coverImage?.extraLarge || "",
+          format: rec.format || "TV",
+          status: formatStatus(rec.status),
+          episodes: rec.episodes,
+          averageScore: rec.averageScore,
+          season: rec.season,
+          seasonYear: rec.seasonYear,
+        };
+      }),
     streamingEpisodes: media.streamingEpisodes || [],
   };
 }
