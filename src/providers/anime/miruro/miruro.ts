@@ -70,8 +70,14 @@ const aniZip = (anilistId: string | number) =>
 function withArtwork(media: any, mappings: unknown) {
   const remap = remapManager.getRemap(media.id);
   const { banner, logo } = extractAniZipImages(mappings, remap);
-  media.bannerImage = banner || media.bannerImage;
-  media.logo = logo || media.logo;
+  if (banner) {
+    media.bannerImage = banner;
+    media.banner = banner;
+  }
+  if (logo) {
+    media.logo = logo;
+    media.clear_logo = logo;
+  }
   return media;
 }
 
@@ -395,7 +401,19 @@ export class Miruro {
         ),
         aniZip(anilistId),
       ]);
-      return data.Media ? withArtwork(applyRemapsToMedia(data.Media), mappings) : null;
+      if (!data.Media) return null;
+      const media = withArtwork(applyRemapsToMedia(data.Media), mappings);
+      if (media.relations?.edges) {
+        for (const edge of media.relations.edges) {
+          if (edge.node) applyRemapsToMedia(edge.node);
+        }
+      }
+      if (media.recommendations?.nodes) {
+        for (const node of media.recommendations.nodes) {
+          if (node.mediaRecommendation) applyRemapsToMedia(node.mediaRecommendation);
+        }
+      }
+      return media;
     } catch (err) {
       Logger.error(`[Miruro] info failed for ${anilistId}: ${String(err)}`);
       return null;

@@ -6,23 +6,34 @@ export function applyRemapsToMedia(media: any): any {
   const remap = remapManager.getRemap(media.id);
   if (!remap) return media;
 
-  if (media.title) {
-    if (remap.name) {
+  media.remap = remap;
+
+  if (remap.name) {
+    if (typeof media.title === "object" && media.title !== null) {
       media.title.english = remap.name;
+      media.title.romaji = remap.name;
+      media.title.userPreferred = remap.name;
+    } else if (typeof media.title === "string") {
+      media.title = remap.name;
     }
+    media.name = remap.name;
   }
 
-  if (media.coverImage) {
-    const poster = remap.poster_img || remap.poster;
-    if (poster) {
-      media.coverImage.extraLarge = poster;
-      media.coverImage.large = poster;
+  const poster = remap.poster_img || remap.poster;
+  if (poster) {
+    if (typeof media.coverImage !== "object" || media.coverImage === null) {
+      media.coverImage = {};
     }
+    media.coverImage.extraLarge = poster;
+    media.coverImage.large = poster;
+    media.coverImage.medium = poster;
+    media.poster = poster;
   }
 
   const banner = remap.banner || remap.banner_image;
   if (banner) {
     media.bannerImage = banner;
+    media.banner = banner;
   }
 
   if (remap.description) {
@@ -32,6 +43,7 @@ export function applyRemapsToMedia(media: any): any {
   const logo = remap.logo || remap.clear_logo;
   if (logo) {
     media.logo = logo;
+    media.clear_logo = logo;
   }
 
   return media;
